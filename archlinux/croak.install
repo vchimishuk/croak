@@ -1,0 +1,10 @@
+post_upgrade() {
+    if ! getent passwd croak > /dev/null
+    then
+        useradd -r -g daemon croak
+    fi
+}
+
+post_remove() {
+    echo "WARNING: You need to delete user croak manually."
+}

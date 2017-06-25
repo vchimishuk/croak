@@ -1,0 +1,27 @@
+# Maintainer: Viacheslav Chimishuk <vchimishuk@yandex.ru>
+
+pkgname=croak
+pkgver=0.0.1
+pkgrel=1
+pkgdesc="Simple twitter web-client."
+arch=('any')
+url="https://github.com/vchimishuk/croak"
+license=('GPL3')
+depends=('python-dateutil' 'python-twitter3' 'python-pymongo' 'python-flask')
+makedepends=('git')
+install=croak.install
+backup=('etc/croak.conf')
+source=("git://github.com/vchimishuk/croak")
+md5sums=('SKIP')
+
+prepare() {
+    cd "${srcdir}/${pkgname}"
+    git checkout -q "v${pkgver}"
+}
+
+package() {
+    cd "${srcdir}/${pkgname}"
+
+    cp -r etc "${pkgdir}"
+    cp -r usr "${pkgdir}"
+}

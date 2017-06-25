@@ -1,0 +1,10 @@
+[Unit]
+Description=Croak daemon
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/lib/croak/croak.py
+User=croak
+Group=daemon
+
+[Install]
+WantedBy=multi-user.target

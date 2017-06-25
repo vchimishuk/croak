@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}Timeline{% endblock %}
+
+{% block content %}
+  {% if prev != None %}
+    <table>
+      <tr>
+        <td>
+          <br />
+          <a href="/timeline/{{ user or '' }}?offset={{ prev }}">See newer</a>
+          <br />
+          <br />
+        </td>
+      </tr>
+    </table>
+  {% endif %}
+
+  <table>
+    {% for st in statuses %}
+    <tr>
+      <td>
+        {{ st.html|safe }}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <table>
+    <tr>
+      <td>
+        <br />
+        <br />
+        <a href="/timeline/{{ user or '' }}?offset={{ next }}">See older</a>
+        <br />
+        <br />
+      </td>
+    </tr>
+  </table>
+{% endblock %}

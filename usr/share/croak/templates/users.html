@@ -1,0 +1,52 @@
+{% extends "layout.html" %}
+{% block title %}Users{% endblock %}
+
+{% block content %}
+  <table>
+    <tr>
+      <td>
+        <form action="" method="post">
+          ID: <input type="text" name="id" />
+          <input type="submit" value="Add" />
+        </form>
+      </td>
+    </tr>
+  </table>
+  <br />
+  <table class="selectable">
+    <tr>
+      <th>ID</th>
+      <th>Synchronized</th>
+      <th>Tweets</th>
+      <th>Enable/Disable</th>
+    </tr>
+    {% for u in users %}
+    <tr>
+      <td>
+        &nbsp;
+        <a href="/timeline/{{ u.id }}">
+          {% if u.enabled %}
+            @{{ u.id }}
+          {% else %}
+            <s>@{{ u.id }}</s>
+            {% endif %}
+        </a>
+        &nbsp;
+      </td>
+      <td>
+        <a href="https://twitter.com/{{ u.id }}" target="_blank">
+          &nbsp;{{ u.sync_time_str }}&nbsp;
+        </a>
+      </td>
+      <td>
+        {{ stats.get(u.id, 0) }}
+      </td>
+      <td>
+        &nbsp;
+        <a href="/users/{{ u.id }}/_toggle">[{% if u.enabled %}D{% else %}E{% endif %}]</a>
+        &nbsp;
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

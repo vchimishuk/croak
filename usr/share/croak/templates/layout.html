@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <head>
+    <title>{% block title %}{% endblock %} - Croak</title>
+    <style>
+      body {
+        font-family: monospace;
+        background-color: #f5f8fa;
+      }
+      table {
+        margin: 0px auto;
+      }
+      .selectable tr:hover {
+        background-color: #dddddd;
+      }
+      th {
+        padding-left: 10px;
+        padding-right: 10px;
+        text-align: center;
+        vertical-align: middle;
+        background-color: #dddddd;
+      }
+      td {
+        padding-left: 10px;
+        padding-right: 10px;
+        text-align: center;
+        vertical-align: middle;
+      }
+      a {
+        text-decoration: none;
+      }
+      a:link {
+        color: black;
+      }
+      a:visited {
+        color: black;
+      }
+      a:hover {
+        color: black;
+      }
+      a:active {
+        color: black;
+      }
+    </style>
+    {% block head %}{% endblock %}
+  </head>
+  <body>
+    {% block content %}{% endblock %}
+  </body>
+</html>
