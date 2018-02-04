@@ -1,6 +1,65 @@
 {% extends "layout.html" %}
 {% block title %}Users{% endblock %}
 
+{% block head %}
+  <script type="text/javascript">
+    function parseDate(s) {
+      var m = s.match(/(\d\d).(\d\d).(\d\d\d\d) (\d\d):(\d\d)/)
+
+      return new Date(parseInt(m[3]), m[2] - 1, m[1], m[4], m[5])
+    }
+
+    function strCmp(a, b) {
+      return a.localeCompare(b)
+    }
+
+    function numCmp(a, b) {
+      var aa = parseInt(a)
+      var bb = parseInt(b)
+
+      return a - b
+    }
+
+    function dateCmp(a, b) {
+      return numCmp(parseDate(a), parseDate(b))
+    }
+
+    function sortTable(column, cmp) {
+      var table = document.getElementById("users")
+      var order = table.getAttribute("order") || "ASC"
+      var rows = Array.from(table.getElementsByTagName("tr")).slice(1)
+
+      if (order == "ASC") {
+        order = "DESC"
+      } else {
+        order = "ASC"
+      }
+
+      rows.sort(function (a, b) {
+        var tda = a.getElementsByTagName("td")[column]
+        var tdb = b.getElementsByTagName("td")[column]
+        var vala = tda.getElementsByClassName("value")[0].innerHTML
+        var valb = tdb.getElementsByClassName("value")[0].innerHTML
+
+        return cmp(vala, valb)
+      })
+      if (order == "DESC") {
+        rows.reverse()
+      }
+
+      for (var i = rows.length - 1; i >= 0; i--) {
+          table.deleteRow(i + 1) // Header row correction.
+      }
+      for (var i = 0; i < rows.length; i++) {
+        var row = table.insertRow()
+        row.innerHTML = rows[i].innerHTML
+      }
+
+      table.setAttribute("order", order)
+    }
+  </script>
+{% endblock %}
+
 {% block content %}
   <table>
     <tr>
@@ -13,12 +72,12 @@
     </tr>
   </table>
   <br />
-  <table class="selectable">
+  <table id="users" class="selectable">
     <tr>
-      <th>ID</th>
-      <th>Synchronized</th>
-      <th>Tweets</th>
-      <th>Enable/Disable</th>
+      <th class="sortable" onclick="sortTable(0, strCmp)">ID</th>
+      <th class="sortable" onclick="sortTable(1, dateCmp)">Synchronized</th>
+      <th class="sortable" onclick="sortTable(2, numCmp)">Tweets</th>
+      <th class="sortable" onclick="sortTable(3, strCmp)">Enable/Disable</th>
     </tr>
     {% for u in users %}
     <tr>
@@ -26,24 +85,26 @@
         &nbsp;
         <a href="/timeline/{{ u.id }}">
           {% if u.enabled %}
-            @{{ u.id }}
+            <span class="value">@{{ u.id }}</span>
           {% else %}
-            <s>@{{ u.id }}</s>
+            <s><span class="value">@{{ u.id }}</span></s>
             {% endif %}
         </a>
         &nbsp;
       </td>
       <td>
         <a href="https://twitter.com/{{ u.id }}" target="_blank">
-          &nbsp;{{ u.sync_time_str }}&nbsp;
+          &nbsp;<span class="value">{{ u.sync_time_str }}</span>&nbsp;
         </a>
       </td>
       <td>
-        {{ stats.get(u.id, 0) }}
+        <span class="value">{{ stats.get(u.id, 0) }}</span>
       </td>
       <td>
         &nbsp;
-        <a href="/users/{{ u.id }}/_toggle">[{% if u.enabled %}D{% else %}E{% endif %}]</a>
+        <a href="/users/{{ u.id }}/_toggle">
+          [<span class="value">{% if u.enabled %}D{% else %}E{% endif %}</span>]
+        </a>
         &nbsp;
       </td>
     </tr>

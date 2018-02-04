@@ -6,5 +6,5 @@ post_upgrade() {
 }
 
 post_remove() {
-    echo "WARNING: You need to delete user croak manually."
+    echo "warning: You need to delete user croak manually."
 }
