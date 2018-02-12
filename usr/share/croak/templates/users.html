@@ -76,8 +76,9 @@
     <tr>
       <th class="sortable" onclick="sortTable(0, strCmp)">ID</th>
       <th class="sortable" onclick="sortTable(1, dateCmp)">Synchronized</th>
-      <th class="sortable" onclick="sortTable(2, numCmp)">Tweets</th>
-      <th class="sortable" onclick="sortTable(3, strCmp)">Enable/Disable</th>
+      <th class="sortable" onclick="sortTable(2, dateCmp)">Last Status</th>
+      <th class="sortable" onclick="sortTable(3, numCmp)">Statuses</th>
+      <th class="sortable" onclick="sortTable(4, strCmp)">Enable/Disable</th>
     </tr>
     {% for u in users %}
     <tr>
@@ -98,7 +99,15 @@
         </a>
       </td>
       <td>
-        <span class="value">{{ stats.get(u.id, 0) }}</span>
+        <a href="https://twitter.com/{{ u.id }}/status/{{ stats.get(u.id).latest.id }}"
+           target="_blank">
+          &nbsp;
+          <span class="value">{{ stats.get(u.id).latest.time }}</span>
+          &nbsp;
+        </a>
+      </td>
+      <td>
+        <span class="value">{{ stats.get(u.id).count }}</span>
       </td>
       <td>
         &nbsp;

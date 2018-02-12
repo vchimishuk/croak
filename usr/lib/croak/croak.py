@@ -13,6 +13,13 @@ import configparser
 import werkzeug.exceptions
 
 
+def time_to_str(t):
+    time = t.replace(tzinfo=dateutil.tz.tzutc())
+    local_time = time.astimezone(dateutil.tz.tzlocal())
+
+    return local_time.strftime('%d.%m.%Y %H:%M')
+
+
 class User:
     def __init__(self, id, sync_time, enabled):
         self.id = id
@@ -22,10 +29,7 @@ class User:
     @property
     def sync_time_str(self):
         if self.sync_time:
-            time = self.sync_time.replace(tzinfo=dateutil.tz.tzutc())
-            local_time = time.astimezone(dateutil.tz.tzlocal())
-
-            return local_time.strftime('%d.%m.%Y %H:%M')
+            return time_to_str(self.sync_time)
         else:
             return ''
 
@@ -72,8 +76,11 @@ def find_user(db, id):
 
 
 def statuses_stats(db):
-    return db.statuses.aggregate([{'$group': {'_id': '$user',
-                                              'count': {'$sum': 1}}}])
+    return db.statuses.aggregate([{'$sort': {'time': 1}},
+                                  {'$group': {'_id': '$user',
+                                              'count': {'$sum': 1},
+                                              'latest_time': {'$last': '$time'},
+                                              'latest_id': {'$last': '$_id'}}}])
 
 
 def find_statuses(db, filter=None, sort=None, skip=0, limit=0):
@@ -161,7 +168,9 @@ def users():
     users = find_users(db, sort=(('_id', 1),))
     stats = {}
     for s in statuses_stats(db):
-        stats[s['_id']] = s['count']
+        stats[s['_id']] = {'count': s['count'],
+                           'latest': {'id': s['latest_id'],
+                                      'time': time_to_str(s['latest_time'])}}
 
     return flask.render_template('users.html', users=users, stats=stats)
 
