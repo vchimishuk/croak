@@ -26,13 +26,16 @@
 
     function sortTable(column, cmp) {
       var table = document.getElementById("users")
-      var order = table.getAttribute("order") || "ASC"
+      var sortColumn = parseInt(table.getAttribute("sort-column"))
+      var sortOrder = table.getAttribute("sort-order")
       var rows = Array.from(table.getElementsByTagName("tr")).slice(1)
 
-      if (order == "ASC") {
-        order = "DESC"
-      } else {
-        order = "ASC"
+      if (sortColumn == column) {
+        if (sortOrder == "asc") {
+          sortOrder = "desc"
+        } else {
+          sortOrder = "asc"
+        }
       }
 
       rows.sort(function (a, b) {
@@ -43,7 +46,7 @@
 
         return cmp(vala, valb)
       })
-      if (order == "DESC") {
+      if (sortOrder == "desc") {
         rows.reverse()
       }
 
@@ -55,7 +58,15 @@
         row.innerHTML = rows[i].innerHTML
       }
 
-      table.setAttribute("order", order)
+      var ths = table.getElementsByTagName("tr")[0].getElementsByTagName("th")
+
+      for (var i = 0; i < ths.length; i++) {
+        ths[i].classList.remove("sorted-asc")
+        ths[i].classList.remove("sorted-desc")
+      }
+      table.setAttribute("sort-column", column)
+      table.setAttribute("sort-order", sortOrder)
+      ths[column].classList.add("sorted-" + sortOrder)
     }
   </script>
 {% endblock %}
@@ -72,9 +83,9 @@
     </tr>
   </table>
   <br />
-  <table id="users" class="selectable">
+  <table id="users" class="selectable" sort-column="0" sort-order="asc">
     <tr>
-      <th class="sortable" onclick="sortTable(0, strCmp)">ID</th>
+      <th class="sortable sorted-asc" onclick="sortTable(0, strCmp)">ID</th>
       <th class="sortable" onclick="sortTable(1, dateCmp)">Synchronized</th>
       <th class="sortable" onclick="sortTable(2, dateCmp)">Last Status</th>
       <th class="sortable" onclick="sortTable(3, numCmp)">Statuses</th>

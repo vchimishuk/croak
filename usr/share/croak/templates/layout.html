@@ -23,6 +23,18 @@
       th.sortable {
         cursor: pointer;
       }
+      th.sortable::before {
+        content: "\0000a0\0000a0";
+      }
+      th.sortable::after {
+        content: "\0000a0\0000a0";
+      }
+      th.sorted-desc::after {
+        content: " \25B2";
+      }
+      th.sorted-asc::after {
+        content: " \25BC";
+      }
       td {
         padding-left: 10px;
         padding-right: 10px;
