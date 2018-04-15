@@ -24,4 +24,5 @@ package() {
 
     cp -r etc "${pkgdir}"
     cp -r usr "${pkgdir}"
+    cp -r systemd "${pkgdir}/usr/lib"
 }

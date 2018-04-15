@@ -1,0 +1,14 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+export DH_VERBOSE=1
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	install -g 0 -o 0 -d debian/croak
+	cp -r etc debian/croak
+	cp -r usr debian/croak
+	mkdir -p debian/croak/lib
+	cp -r systemd debian/croak/lib

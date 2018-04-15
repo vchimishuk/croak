@@ -1,0 +1,5 @@
+croak (0.1.0) stable; urgency=low
+
+  * Initial Debian release.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Sun, 15 Apr 2018 15:12:00 +0300

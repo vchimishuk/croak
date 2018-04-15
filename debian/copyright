@@ -1,0 +1,8 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: croak
+Source: https://github.com/vchimishuk/croak
+
+Files: *
+Copyright: 2018 Viacheslav Chimishuk <vchimishuk@yandex.ru>
+Author: Viacheslav Chimishuk <vchimishuk@yandex.ru>
+License: GPL-3+

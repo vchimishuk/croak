@@ -1,0 +1,12 @@
+Source: croak
+Section: main
+Priority: optional
+Maintainer: Viacheslav Chimishuk <vchimishuk@yandex.ru>
+Build-Depends: debhelper (>=9)
+Standards-Version: 3.9.4
+Homepage: https://github.com/vchimishuk/croak
+
+Package: croak
+Architecture: all
+Depends: python3-dateutil, python3-twitter, python3-pymongo, python3-flask
+Description: simple twitter web-client
