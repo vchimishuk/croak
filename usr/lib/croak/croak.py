@@ -1,4 +1,5 @@
 import io
+import sys
 import time
 from datetime import datetime
 import dateutil.tz
@@ -7,6 +8,8 @@ import logging
 import threading
 import http.client
 import twitter
+from pyquery import PyQuery
+from html.parser import HTMLParser
 import pymongo
 import flask
 import configparser
@@ -40,6 +43,94 @@ class Status:
         self.user = user
         self.time = time
         self.html = html
+
+
+class TwitterClient:
+    def get_timeline(user, since=None):
+        raise NotImplementedError()
+
+
+class APITwitterClient(TwitterClient):
+    def __init__(self, consumer_key, consumer_secret,
+                 access_token_key, access_token_secret):
+        self.api = twitter.Api(consumer_key=consumer_key,
+                               consumer_secret=consumer_secret,
+                               access_token_key=access_token_key,
+                               access_token_secret=access_token_secret)
+
+    def get_timeline(self, user, since=None):
+        self.api.GetUserTimeline(screen_name=user, since_id=since,
+                                 trim_user=True)
+        statuses = []
+        for st in sts:
+            e = self.api.GetStatusOembed(st.id)
+            create_at = datetime.strptime(st.created_at,
+                                          '%a %b %d %H:%M:%S %z %Y')
+            statuses.append(Status(st.id, user, create_at, e['html']))
+
+        return statuses
+
+
+class WebTwitterClient(TwitterClient):
+    UA = 'Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/61.0'
+
+    OEMBED_FMT = ('<blockquote class="twitter-tweet">'
+                  '<p lang="en" dir="ltr">{text}</p>'
+                  '&mdash; {name} ({id}) '
+                  '<a href="https://twitter.com/{id}/status/{status}">'
+                  '{date}'
+                  '</a>'
+                  '</blockquote>\n'
+                  '<script async src="//platform.twitter.com/widgets.js" '
+                  'charset="utf-8"></script>')
+
+    class TweetSanitizeParser(HTMLParser):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+
+            self.res = ''
+
+        def handle_starttag(self, tag, attrs):
+            if tag == 'a':
+                d = dict(attrs)
+                self.res += '<a href="{}">'.format(d['href'])
+
+        def handle_endtag(self, tag):
+            if tag == 'a':
+                self.res += '</a>'
+
+        def handle_data(self, data):
+            self.res += data
+
+        def parse(self, text):
+            self.feed(text)
+
+            return self.res
+
+    def sanitize_text(self, text):
+        p = __class__.TweetSanitizeParser()
+
+        return p.parse(text)
+
+    def get_timeline(self, user, since=None):
+        url = 'https://twitter.com/{}'.format(user)
+        pq = PyQuery(url, headers={'User-Agent': __class__.UA})
+
+        statuses = []
+        for item in pq('li.stream-item').items():
+            status = int(item.attr('data-item-id'))
+            text = self.sanitize_text(item.find('p.tweet-text').html())
+            date = item.find('a.tweet-timestamp').text()
+            ts = int(item.find('a.tweet-timestamp span').attr('data-time'))
+            id = item.find('div.original-tweet').attr('data-screen-name')
+            name = item.find('div.original-tweet').attr('data-name')
+            st = __class__.OEMBED_FMT.format(text=text, name=name, id=id,
+                                             status=status, date=date)
+
+            statuses.append(Status(status, user, datetime.fromtimestamp(ts),
+                                   st))
+
+        return statuses
 
 
 def read_config(path):
@@ -92,18 +183,6 @@ def find_statuses(db, filter=None, sort=None, skip=0, limit=0):
     return statuses
 
 
-def get_timeline(client, user, since):
-    sts = client.GetUserTimeline(screen_name=user, since_id=since,
-                                 trim_user=True)
-    statuses = []
-    for st in sts:
-        e = client.GetStatusOembed(st.id)
-        create_at = datetime.strptime(st.created_at, '%a %b %d %H:%M:%S %z %Y')
-        statuses.append(Status(st.id, user, create_at, e['html']))
-
-    return statuses
-
-
 def save_status(db, st):
     update = {'user': st.user, 'time': st.time, 'html': st.html}
     db.statuses.update_one({'_id': st.id}, {'$set': update}, True)
@@ -135,7 +214,7 @@ class Synchronizer(threading.Thread):
                     if last_sts:
                         last_st = last_sts[0].id
 
-                    for st in get_timeline(self.client, u.id, last_st):
+                    for st in client.get_timeline(u.id, last_st):
                         logging.info('Received new status %d.', st.id)
                         save_status(self.db, st)
 
@@ -152,8 +231,8 @@ TEMPLATE_DIR = '/usr/share/croak/templates'
 
 
 config = read_config(CONF_FILE)
-client = pymongo.MongoClient(config['db.host'], int(config['db.port']))
-db = client[config['db.name']]
+db_client = pymongo.MongoClient(config['db.host'], int(config['db.port']))
+db = db_client[config['db.name']]
 app = flask.Flask('Croak', template_folder=TEMPLATE_DIR)
 
 
@@ -216,10 +295,18 @@ def timeline(user=None):
 if __name__ == '__main__':
     # TODO: Create indexes.
 
-    client = twitter.Api(consumer_key=config['twitter.consumer-key'],
-                         consumer_secret=config['twitter.consumer-secret'],
-                         access_token_key=config['twitter.access-token-key'],
-                         access_token_secret=config['twitter.access-token-secret'])
+    client = None
+    if config['twitter.client'] == 'web':
+        client = WebTwitterClient()
+    elif config['twitter.client'] == 'api':
+        client = APITwitterClient(config['twitter.consumer-key'],
+                                  config['twitter.consumer-secret'],
+                                  config['twitter.access-token-key'],
+                                  config['twitter.access-token-secret'])
+    else:
+        logging.critical('%s: invalid twitter.client value', CONF_FILE)
+        sys.exit(1)
+
     sync = Synchronizer(db, client, int(config['twitter.sync-users']),
                         int(config['twitter.sync-delay']))
     sync.start()
