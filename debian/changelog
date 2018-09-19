@@ -1,3 +1,11 @@
+croak (0.2.0) stable; urgency=low
+
+  * Use daemon username to run Croak instead of croak.
+  * Add Twitter web client support.
+  * Fix exception on new unsynchronized user.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Thu, 20 Sep 2018 01:42:00 +0300
+
 croak (0.1.0) stable; urgency=low
 
   * Initial Debian release.
