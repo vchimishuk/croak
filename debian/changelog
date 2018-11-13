@@ -1,3 +1,9 @@
+croak (0.3.0) stable; urgency=low
+
+  * Sort statuses by insert order instead of time.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Tue, 13 Nov 2018 22:40:00 +0200
+
 croak (0.2.0) stable; urgency=low
 
   * Use daemon username to run Croak instead of croak.
