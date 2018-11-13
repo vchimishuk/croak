@@ -209,7 +209,7 @@ class Synchronizer(threading.Thread):
                     logging.info('Synchronizing user @%s.', u.id)
 
                     last_sts = find_statuses(db, {'user': u.id},
-                                             (('time', -1),), 0, 1)
+                                             (('_id', -1),), 0, 1)
                     last_st = None
                     if last_sts:
                         last_st = last_sts[0].id
@@ -282,7 +282,7 @@ def timeline(user=None):
     filter = None
     if user:
         filter = {'user': user}
-    sts = find_statuses(db, filter, (('time', -1),), offset, limit)
+    sts = find_statuses(db, filter, (('_id', -1),), offset, limit)
     prev = None
     if offset >= limit:
         prev = offset - limit
