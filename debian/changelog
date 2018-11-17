@@ -1,3 +1,10 @@
+croak (0.4.0) stable; urgency=low
+
+  * Add navigation menu.
+  * Add Statistics page.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Sat, 17 Nov 2018 19:21:00 +0200
+
 croak (0.3.0) stable; urgency=low
 
   * Sort statuses by insert order instead of time.
