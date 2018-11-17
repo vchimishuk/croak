@@ -1,7 +1,7 @@
 import io
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import dateutil.tz
 import json
 import logging
@@ -190,6 +190,18 @@ def save_status(db, st):
     return st
 
 
+def timeline_stats(db, start_date):
+    sts = db.statuses.aggregate([
+        {'$match': {'time': {'$gt': start_date}}},
+        {'$group': {'_id': {'user': '$user',
+                            'month': {'$month': '$time'},
+                            'day': {'$dayOfMonth': '$time'},
+                            'year': {'$year': '$time'}},
+                    'count': {'$sum': 1} }}])
+
+    return list(sts)
+
+
 class Synchronizer(threading.Thread):
     def __init__(self, db, client, sync_users, sync_delay):
         super().__init__()
@@ -290,6 +302,47 @@ def timeline(user=None):
 
     return flask.render_template('timeline.html', statuses=sts, user=user,
                                  prev=prev, next=next)
+
+
+@app.route('/stats', methods=['GET'])
+def stats():
+    ndays = 180
+    dates = []
+    for i in range(ndays):
+        dates.insert(0, date.today() - timedelta(days=i))
+
+    users_sts = {}
+    for s in timeline_stats(db, datetime.utcnow() - timedelta(days=ndays)):
+        key = s['_id']
+        u = key['user']
+        d = date(key['year'], key['month'], key['day'])
+
+        if u not in users_sts:
+            users_sts[u] = {}
+        users_sts[u][d] = s['count']
+
+    sts = []
+    sts_max = 0
+    for u in sorted(users_sts.keys()):
+        s = []
+        for d in dates:
+            c = users_sts[u].get(d, 0)
+            sts_max = max(sts_max, c)
+            s.append({'date': d, 'count': c})
+        sts.append((u, s))
+
+    total = []
+    total_max = 0
+    for d in dates:
+        c = 0
+        for s in users_sts.values():
+            c += s.get(d, 0)
+        total_max = max(total_max, c)
+        total.append({'date': d, 'count': c})
+
+    return flask.render_template('stats.html',
+                                 stats=sts, stats_max=sts_max,
+                                 total=total, total_max=total_max)
 
 
 if __name__ == '__main__':

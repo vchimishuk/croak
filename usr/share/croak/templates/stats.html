@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+{% block title %}Statistics{% endblock %}
+
+{% block head %}
+{% endblock %}
+
+{% block content %}
+  {% macro chart(title, stats, max) %}
+    <figure>
+      <figcaption>{{ title }}</figcaption>
+      <svg version="1.1" xmlns="http://www.w3.org/2000/svg"
+           xmlns:xlink="http://www.w3.org/1999/xlink" class="chart"
+           width="2000" height="{{ 100 }}"
+           aria-labelledby="title" role="img">
+        {% for s in stats %}
+          <g class="bar">
+            <rect x="{{ loop.index * 7 }}"
+                  y="{{ 100 - 10 / max * s.count * 10 }}"
+                  width="6"
+                  height="{{ 10 / max * s.count * 10 }}"
+                  fill="#1DA1F2">
+              <title>
+                {{ s.date.day }}.{{ s.date.month }}.{{ s.date.year }}
+                ({{ s.count }})
+              </title>
+            </rect>
+          </g>
+        {% endfor %}
+      </svg>
+    </figure>
+  {% endmacro %}
+
+  {{ chart('Total', total, total_max) }}
+
+  {% for user, st in stats %}
+    {{ chart('@' + user, st, stats_max) }}
+  {% endfor %}
+{% endblock %}
