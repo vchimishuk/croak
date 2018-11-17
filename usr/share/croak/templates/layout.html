@@ -56,10 +56,30 @@
       a:active {
         color: black;
       }
+      a.selected {
+        font-weight: bold;
+      }
     </style>
     {% block head %}{% endblock %}
   </head>
   <body>
+    <table style="background-color: #1DA1F2; width: 100%;">
+      <tr>
+        <td>
+          <a href="/" class="{% if page == "timeline" %}selected{% endif %}">
+            Timeline
+          </a>
+          |
+          <a href="/users" class="{% if page == "users" %}selected{% endif %}">
+            Users
+          </a>
+          |
+          <a href="/stats" class="{% if page == "stats" %}selected{% endif %}">
+            Statistics
+          </a>
+        </td>
+      </tr>
+    </table>
     {% block content %}{% endblock %}
   </body>
 </html>
