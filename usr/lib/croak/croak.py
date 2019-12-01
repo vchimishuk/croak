@@ -38,8 +38,9 @@ class User:
 
 
 class Status:
-    def __init__(self, id, user, time, html):
+    def __init__(self, id, fetch_time, user, time, html):
         self.id = id
+        self.fetch_time = fetch_time
         self.user = user
         self.time = time
         self.html = html
@@ -66,7 +67,8 @@ class APITwitterClient(TwitterClient):
             e = self.api.GetStatusOembed(st.id)
             create_at = datetime.strptime(st.created_at,
                                           '%a %b %d %H:%M:%S %z %Y')
-            statuses.append(Status(st.id, user, create_at, e['html']))
+            statuses.append(Status(st.id, datetime.now(), user,
+                                   create_at, e['html']))
 
         return statuses
 
@@ -127,8 +129,8 @@ class WebTwitterClient(TwitterClient):
             st = __class__.OEMBED_FMT.format(text=text, name=name, id=id,
                                              status=status, date=date)
 
-            statuses.append(Status(status, user, datetime.fromtimestamp(ts),
-                                   st))
+            statuses.append(Status(status, datetime.now(), user,
+                                   datetime.fromtimestamp(ts), st))
 
         return statuses
 
@@ -178,14 +180,19 @@ def find_statuses(db, filter=None, sort=None, skip=0, limit=0):
     statuses = []
     sts = db.statuses.find(filter=filter, sort=sort, skip=skip, limit=limit)
     for st in sts:
-        statuses.append(Status(st['_id'], st['user'], st['time'], st['html']))
+        statuses.append(Status(st['_id'], st['fetch_time'], st['user'],
+                               st['time'], st['html']))
 
     return statuses
 
 
 def save_status(db, st):
-    update = {'user': st.user, 'time': st.time, 'html': st.html}
-    db.statuses.update_one({'_id': st.id}, {'$set': update}, True)
+    if not db.statuses.find_one({'_id': st.id}):
+        db.statuses.insert_one({'_id': st.id,
+                                'fetch_time': st.fetch_time,
+                                'user': st.user,
+                                'time': st.time,
+                                'html': st.html})
 
     return st
 
@@ -294,7 +301,7 @@ def timeline(user=None):
     filter = None
     if user:
         filter = {'user': user}
-    sts = find_statuses(db, filter, (('_id', -1),), offset, limit)
+    sts = find_statuses(db, filter, (('fetch_time', -1),), offset, limit)
     prev = None
     if offset >= limit:
         prev = offset - limit
