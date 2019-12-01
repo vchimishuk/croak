@@ -1,3 +1,10 @@
+croak (0.5.0) stable; urgency=low
+
+  * Sort timeline by fetch time instead of status id.
+  * Add favicon.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Mon, 02 Dec 2019 00:33:00 +0200
+
 croak (0.4.0) stable; urgency=low
 
   * Add navigation menu.
