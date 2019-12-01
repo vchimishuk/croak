@@ -23,6 +23,11 @@ def time_to_str(t):
     return local_time.strftime('%d.%m.%Y %H:%M')
 
 
+def read_file(name):
+    with open(name, 'rb') as f:
+        return f.read()
+
+
 class User:
     def __init__(self, id, sync_time, enabled):
         self.id = id
@@ -246,19 +251,27 @@ class Synchronizer(threading.Thread):
 
 
 CONF_FILE = '/etc/croak.conf'
-TEMPLATE_DIR = '/usr/share/croak/templates'
+DATA_DIR = '/usr/share/croak'
+TEMPLATE_DIR = DATA_DIR + '/templates'
+FAVICON_FILE = DATA_DIR + '/favicon.ico'
 
 
 config = read_config(CONF_FILE)
 db_client = pymongo.MongoClient(config['db.host'], int(config['db.port']))
 db = db_client[config['db.name']]
 app = flask.Flask('Croak', template_folder=TEMPLATE_DIR)
+favicon_data = read_file(FAVICON_FILE)
 
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 logging.basicConfig(level=logging.WARN,
                     format='%(asctime)s %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
+
+
+@app.route('/favicon.ico', methods=['GET'])
+def favicon():
+    return flask.Response(favicon_data, mimetype="image/vnd.microsoft.icon")
 
 
 @app.route('/users', methods=['GET'])
