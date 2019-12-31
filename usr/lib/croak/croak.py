@@ -124,7 +124,8 @@ class WebTwitterClient(TwitterClient):
         pq = PyQuery(url, headers={'User-Agent': __class__.UA})
 
         statuses = []
-        for item in pq('li.stream-item').items():
+        items = reversed(list(pq('li.stream-item').items()))
+        for item in items:
             status = int(item.attr('data-item-id'))
             text = self.sanitize_text(item.find('p.tweet-text').html())
             date = item.find('a.tweet-timestamp').text()
@@ -314,7 +315,8 @@ def timeline(user=None):
     filter = None
     if user:
         filter = {'user': user}
-    sts = find_statuses(db, filter, (('fetch_time', -1),), offset, limit)
+    sts = find_statuses(db, filter, (('fetch_time', -1), ('_id', -1)),
+                        offset, limit)
     prev = None
     if offset >= limit:
         prev = offset - limit
