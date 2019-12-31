@@ -1,3 +1,10 @@
+croak (0.6.0) stable; urgency=low
+
+  * Process Twitter timeline statuses in reverse order, so their
+    fetch_time order will match original status creation order.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Wed, 31 Dec 2019 17:24:00 +0200
+
 croak (0.5.0) stable; urgency=low
 
   * Sort timeline by fetch time instead of status id.
