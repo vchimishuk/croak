@@ -251,7 +251,7 @@ favicon_data = read_file(FAVICON_FILE)
 
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
-logging.basicConfig(level=logging.WARN,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s %(message)s',
                     datefmt='%Y-%m-%d %H:%M:%S')
 
