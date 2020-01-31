@@ -1,4 +1,5 @@
 import io
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -6,10 +7,9 @@ import dateutil.tz
 import json
 import logging
 import threading
-import http.client
+from urllib.parse import urlencode
+import urllib.request
 import twitter
-from pyquery import PyQuery
-from html.parser import HTMLParser
 import pymongo
 import flask
 import configparser
@@ -79,66 +79,52 @@ class APITwitterClient(TwitterClient):
 
 
 class WebTwitterClient(TwitterClient):
-    UA = 'Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/61.0'
+    ua = 'Croak Python-urllib/{}.{}'.format(*sys.version_info[:2])
+    idre = re.compile(r'id="stream-item-tweet-(\d+)"')
+    tsre = re.compile(r'data-time="(\d+)"')
 
-    OEMBED_FMT = ('<blockquote class="twitter-tweet">'
-                  '<p lang="en" dir="ltr">{text}</p>'
-                  '&mdash; {name} ({id}) '
-                  '<a href="https://twitter.com/{id}/status/{status}">'
-                  '{date}'
-                  '</a>'
-                  '</blockquote>\n'
-                  '<script async src="//platform.twitter.com/widgets.js" '
-                  'charset="utf-8"></script>')
-
-    class TweetSanitizeParser(HTMLParser):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-
-            self.res = ''
-
-        def handle_starttag(self, tag, attrs):
-            if tag == 'a':
-                d = dict(attrs)
-                self.res += '<a href="{}">'.format(d['href'])
-
-        def handle_endtag(self, tag):
-            if tag == 'a':
-                self.res += '</a>'
-
-        def handle_data(self, data):
-            self.res += data
-
-        def parse(self, text):
-            self.feed(text)
-
-            return self.res
-
-    def sanitize_text(self, text):
-        p = __class__.TweetSanitizeParser()
-
-        return p.parse(text)
+    def __init__(self, db):
+        self.db = db
 
     def get_timeline(self, user, since=None):
-        url = 'https://twitter.com/{}'.format(user)
-        pq = PyQuery(url, headers={'User-Agent': __class__.UA})
-
+        st, reason, body = self.http_get('http://twitter.com/' + user)
+        if st != 200:
+            raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
+                                                                  b))
         statuses = []
-        items = reversed(list(pq('li.stream-item').items()))
-        for item in items:
-            status = int(item.attr('data-item-id'))
-            text = self.sanitize_text(item.find('p.tweet-text').html())
-            date = item.find('a.tweet-timestamp').text()
-            ts = int(item.find('a.tweet-timestamp span').attr('data-time'))
-            id = item.find('div.original-tweet').attr('data-screen-name')
-            name = item.find('div.original-tweet').attr('data-name')
-            st = __class__.OEMBED_FMT.format(text=text, name=name, id=id,
-                                             status=status, date=date)
+        ids = list(reversed(self.idre.findall(body.decode('utf-8'))))
+        tss = list(reversed(self.tsre.findall(body.decode('utf-8'))))
+        assert len(ids) == len(tss)
+        logging.info('Got %d statuses from Twitter.', len(ids))
 
-            statuses.append(Status(status, datetime.now(), user,
-                                   datetime.fromtimestamp(ts), st))
+        for id, ts in zip(ids, tss):
+            if db.statuses.find_one({'_id': int(id)}):
+                logging.info('Known status %s. Ignoring', id)
+            else:
+                logging.info('New status %s. Saving.', id)
+                html = self.oembed(id)
+                statuses.append(Status(int(id), datetime.now(), user,
+                                       datetime.fromtimestamp(int(ts)),
+                                       html))
 
         return statuses
+
+    def oembed(self, status):
+        params = {'url': 'https://twitter.com/bradfitz/status/' + status,
+                  'partner': '',
+                  'hide_thread': 'false'}
+        uri = 'https://publish.twitter.com/oembed?' + urlencode(params)
+        st, reason, body = self.http_get(uri)
+        if st != 200:
+            raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
+                                                                  b))
+        return json.loads(body)['html']
+
+    def http_get(self, uri):
+        req = urllib.request.Request(uri)
+        req.add_header('User-Agent', self.ua)
+        with urllib.request.urlopen(req) as r:
+            return r.status, r.reason, r.read()
 
 
 def read_config(path):
@@ -372,7 +358,7 @@ if __name__ == '__main__':
 
     client = None
     if config['twitter.client'] == 'web':
-        client = WebTwitterClient()
+        client = WebTwitterClient(db)
     elif config['twitter.client'] == 'api':
         client = APITwitterClient(config['twitter.consumer-key'],
                                   config['twitter.consumer-secret'],
