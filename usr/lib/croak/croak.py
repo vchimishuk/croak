@@ -81,36 +81,30 @@ class APITwitterClient(TwitterClient):
 class WebTwitterClient(TwitterClient):
     ua = 'Croak Python-urllib/{}.{}'.format(*sys.version_info[:2])
     idre = re.compile(r'id="stream-item-tweet-(\d+)"')
-    tsre = re.compile(r'data-time="(\d+)"')
 
     def __init__(self, db):
         self.db = db
 
     def get_timeline(self, user, since=None):
-        st, reason, body = self.http_get('http://twitter.com/' + user)
+        st, reason, body = self.http_get('https://twitter.com/' + user)
         if st != 200:
             raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
                                                                   b))
         statuses = []
         ids = list(reversed(self.idre.findall(body.decode('utf-8'))))
-        tss = list(reversed(self.tsre.findall(body.decode('utf-8'))))
-        assert len(ids) == len(tss)
         logging.info('Got %d statuses from Twitter.', len(ids))
 
-        for id, ts in zip(ids, tss):
+        for id in ids:
             if db.statuses.find_one({'_id': int(id)}):
                 logging.info('Known status %s. Ignoring', id)
             else:
                 logging.info('New status %s. Saving.', id)
-                html = self.oembed(id)
-                statuses.append(Status(int(id), datetime.now(), user,
-                                       datetime.fromtimestamp(int(ts)),
-                                       html))
+                statuses.append(self.oembed(user, id))
 
         return statuses
 
-    def oembed(self, status):
-        params = {'url': 'https://twitter.com/bradfitz/status/' + status,
+    def oembed(self, user, status):
+        params = {'url': 'https://twitter.com/{}/status/{}'.format(user, status),
                   'partner': '',
                   'hide_thread': 'false'}
         uri = 'https://publish.twitter.com/oembed?' + urlencode(params)
@@ -118,7 +112,19 @@ class WebTwitterClient(TwitterClient):
         if st != 200:
             raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
                                                                   b))
-        return json.loads(body)['html']
+        o = json.loads(body)
+        html = o['html']
+        user = self.status_owner(o['url'])
+        now = datetime.now()
+
+        return Status(int(status), now, user, now, html)
+
+    def status_owner(self, url):
+        m = re.compile(r'^https://twitter.com/(.+)/status/\d+$').match(url)
+        if not m:
+            raise Exception('invalid status url: ' + url)
+
+        return m.group(1)
 
     def http_get(self, uri):
         req = urllib.request.Request(uri)
@@ -226,7 +232,6 @@ class Synchronizer(threading.Thread):
                         last_st = last_sts[0].id
 
                     for st in client.get_timeline(u.id, last_st):
-                        logging.info('Received new status %d.', st.id)
                         save_status(self.db, st)
 
                     u.sync_time = datetime.utcnow()
