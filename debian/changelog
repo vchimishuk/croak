@@ -1,3 +1,9 @@
+croak (0.7.1) stable; urgency=low
+
+  * Fix WebTwitterClient failure on some pages with retweets.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Tue, 11 Feb 2020 01:18:00 +0200
+
 croak (0.7.0) stable; urgency=low
 
   * Update WebTwitterClient to work with new Twitter layout.
