@@ -114,17 +114,9 @@ class WebTwitterClient(TwitterClient):
                                                                   b))
         o = json.loads(body)
         html = o['html']
-        user = self.status_owner(o['url'])
         now = datetime.now()
 
         return Status(int(status), now, user, now, html)
-
-    def status_owner(self, url):
-        m = re.compile(r'^https://twitter.com/(.+)/status/\d+$').match(url)
-        if not m:
-            raise Exception('invalid status url: ' + url)
-
-        return m.group(1)
 
     def http_get(self, uri):
         req = urllib.request.Request(uri)
