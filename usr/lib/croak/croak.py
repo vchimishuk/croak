@@ -62,11 +62,13 @@ class APITwitterClient(TwitterClient):
         self.api = twitter.Api(consumer_key=consumer_key,
                                consumer_secret=consumer_secret,
                                access_token_key=access_token_key,
-                               access_token_secret=access_token_secret)
+                               access_token_secret=access_token_secret,
+                               sleep_on_rate_limit=True,
+                               timeout=60)
 
     def get_timeline(self, user, since=None):
-        self.api.GetUserTimeline(screen_name=user, since_id=since,
-                                 trim_user=True)
+        sts = self.api.GetUserTimeline(screen_name=user, since_id=since,
+                                       trim_user=True)
         statuses = []
         for st in sts:
             e = self.api.GetStatusOembed(st.id)
