@@ -1,3 +1,9 @@
+croak (0.7.4) stable; urgency=low
+
+  * Add Restart=always to systemd service file.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Sat, 26 Jun 2020 12:08:00 +0300
+
 croak (0.7.3) stable; urgency=low
 
   * Enable connection timeout and sleep on rate limit for Twitter API client.
