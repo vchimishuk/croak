@@ -3,6 +3,7 @@ Description=Croak daemon
 
 [Service]
 ExecStart=/usr/bin/python3 /usr/lib/croak/croak.py
+Restart=always
 User=daemon
 Group=daemon
 
