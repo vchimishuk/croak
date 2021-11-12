@@ -353,7 +353,7 @@ def stats():
 
 
 if __name__ == '__main__':
-    # TODO: Create indexes.
+    db.statuses.create_index([("fetch_time", pymongo.DESCENDING)])
 
     client = None
     if config['twitter.client'] == 'web':
