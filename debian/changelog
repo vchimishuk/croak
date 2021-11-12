@@ -1,3 +1,10 @@
+croak (0.8.0) stable; urgency=low
+
+  * Send Graphite metrics.
+  * Create fetch_time index automatically.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Fri, 12 Nov 2021 23:01:00 +0200
+
 croak (0.7.4) stable; urgency=low
 
   * Add Restart=always to systemd service file.
