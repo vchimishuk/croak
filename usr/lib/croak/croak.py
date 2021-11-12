@@ -11,9 +11,26 @@ from urllib.parse import urlencode
 import urllib.request
 import twitter
 import pymongo
+import pygraphite
 import flask
 import configparser
 import werkzeug.exceptions
+
+
+class Ref:
+    def __init__(self, value=None):
+        self.lock = threading.Lock()
+        self._value = value
+
+    @property
+    def value(self):
+        with self.lock:
+            return self._value
+
+    @value.setter
+    def value(self, v):
+        with self.lock:
+            self._value = v
 
 
 def time_to_str(t):
@@ -202,15 +219,18 @@ def timeline_stats(db, start_date):
 
 
 class Synchronizer(threading.Thread):
-    def __init__(self, db, client, sync_users, sync_delay):
+    def __init__(self, db, graphite, client, sync_users, sync_delay):
         super().__init__()
 
         self.db = db
+        self.graphite = graphite
         self.client = client
         self.sync_users = sync_users
         self.sync_delay = sync_delay
 
     def run(self):
+        stats = Ref()
+
         while True:
             try:
                 users = find_users(db, filter={'enabled': True},
@@ -233,6 +253,26 @@ class Synchronizer(threading.Thread):
             except Exception as e:
                 logging.exception('Synchronization failed.')
 
+            try:
+                sts = {}
+                nsts = 0
+                for st in statuses_stats(db):
+                    sts[st['_id']] = st['count']
+                    nsts += st['count']
+
+                stats.value = {'statuses': sts,
+                               'nstatuses': nsts,
+                               'nusers': len(sts)}
+                self.graphite.gauge('user.count',
+                                    lambda: stats.value['nusers'])
+                self.graphite.gauge('status.count',
+                                    lambda: stats.value['nstatuses'])
+                for u, st in stats.value['statuses'].items():
+                    self.graphite.gauge('status.user-{}.count'.format(u),
+                                        lambda: stats.value['statuses'][u])
+            except Exception as e:
+                logging.exception('Statistics loading failed.')
+
             time.sleep(self.sync_delay)
 
 
@@ -245,6 +285,9 @@ FAVICON_FILE = DATA_DIR + '/favicon.ico'
 config = read_config(CONF_FILE)
 db_client = pymongo.MongoClient(config['db.host'], int(config['db.port']))
 db = db_client[config['db.name']]
+graphite = pygraphite.Graphite(config['graphite.host'],
+                               int(config['graphite.port']),
+                               prefix=config['graphite.prefix'])
 app = flask.Flask('Croak', template_folder=TEMPLATE_DIR)
 favicon_data = read_file(FAVICON_FILE)
 
@@ -367,8 +410,10 @@ if __name__ == '__main__':
         logging.critical('%s: invalid twitter.client value', CONF_FILE)
         sys.exit(1)
 
-    sync = Synchronizer(db, client, int(config['twitter.sync-users']),
+    sync = Synchronizer(db, graphite, client,
+                        int(config['twitter.sync-users']),
                         int(config['twitter.sync-delay']))
     sync.start()
     # TODO: Stop synchronizer and application.
+    #       graphite.close()
     app.run(config['http.address'], int(config['http.port']), debug=False)
