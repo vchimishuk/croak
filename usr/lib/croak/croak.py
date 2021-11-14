@@ -269,7 +269,7 @@ class Synchronizer(threading.Thread):
                                     lambda: stats.value['nstatuses'])
                 for u, st in stats.value['statuses'].items():
                     self.graphite.gauge('status.user-{}.count'.format(u),
-                                        lambda: stats.value['statuses'][u])
+                                        lambda u=u: stats.value['statuses'][u])
             except Exception as e:
                 logging.exception('Statistics loading failed.')
 
