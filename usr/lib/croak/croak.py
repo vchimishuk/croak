@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 import urllib.request
 import twitter
 import pymongo
-import pygraphite
+import pyrite
 import flask
 import configparser
 import werkzeug.exceptions
@@ -285,9 +285,9 @@ FAVICON_FILE = DATA_DIR + '/favicon.ico'
 config = read_config(CONF_FILE)
 db_client = pymongo.MongoClient(config['db.host'], int(config['db.port']))
 db = db_client[config['db.name']]
-graphite = pygraphite.Graphite(config['graphite.host'],
-                               int(config['graphite.port']),
-                               prefix=config['graphite.prefix'])
+graphite = pyrite.Pyrite(config['graphite.host'],
+                         int(config['graphite.port']),
+                         prefix=config['graphite.prefix'])
 app = flask.Flask('Croak', template_folder=TEMPLATE_DIR)
 favicon_data = read_file(FAVICON_FILE)
 
