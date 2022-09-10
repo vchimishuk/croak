@@ -1,3 +1,9 @@
+croak (0.8.2) stable; urgency=low
+
+  * Replace python-pygraphite Graphite client with Pyrite.
+
+ -- Viacheslav Chimishuk <vchimishuk@yandex.ru>  Sun, 10 Sep 2022 19:02:00 +0300
+
 croak (0.8.1) stable; urgency=low
 
   * Fix broken status.user-{login}.count metric.
