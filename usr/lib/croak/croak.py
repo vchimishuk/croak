@@ -17,6 +17,41 @@ import configparser
 import werkzeug.exceptions
 
 
+def time_to_str(t):
+    time = t.replace(tzinfo=dateutil.tz.tzutc())
+    local_time = time.astimezone(dateutil.tz.tzlocal())
+
+    return local_time.strftime('%d.%m.%Y %H:%M')
+
+
+def read_file(name):
+    with open(name, 'rb') as f:
+        return f.read()
+
+
+def http_get(uri):
+    ua = 'Croak Python-urllib/{}.{}'.format(*sys.version_info[:2])
+    req = urllib.request.Request(uri)
+    req.add_header('User-Agent', ua)
+    with urllib.request.urlopen(req) as r:
+        return r.status, r.reason, r.read()
+
+
+def oembed(user, status):
+    params = {'url': 'https://twitter.com/{}/status/{}'.format(user, status),
+              'partner': '',
+              'hide_thread': 'false'}
+    uri = 'https://publish.twitter.com/oembed?' + urlencode(params)
+    st, reason, body = http_get(uri)
+    if st != 200:
+        raise Exception('Twitter response: {}: {}: {}'.format(st, reason, b))
+    o = json.loads(body)
+    html = o['html']
+    now = datetime.now()
+
+    return Status(int(status), now, user, now, html)
+
+
 class Ref:
     def __init__(self, value=None):
         self.lock = threading.Lock()
@@ -31,18 +66,6 @@ class Ref:
     def value(self, v):
         with self.lock:
             self._value = v
-
-
-def time_to_str(t):
-    time = t.replace(tzinfo=dateutil.tz.tzutc())
-    local_time = time.astimezone(dateutil.tz.tzlocal())
-
-    return local_time.strftime('%d.%m.%Y %H:%M')
-
-
-def read_file(name):
-    with open(name, 'rb') as f:
-        return f.read()
 
 
 class User:
@@ -98,14 +121,13 @@ class APITwitterClient(TwitterClient):
 
 
 class WebTwitterClient(TwitterClient):
-    ua = 'Croak Python-urllib/{}.{}'.format(*sys.version_info[:2])
     idre = re.compile(r'id="stream-item-tweet-(\d+)"')
 
     def __init__(self, db):
         self.db = db
 
     def get_timeline(self, user, since=None):
-        st, reason, body = self.http_get('https://twitter.com/' + user)
+        st, reason, body = http_get('https://twitter.com/' + user)
         if st != 200:
             raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
                                                                   b))
@@ -118,30 +140,33 @@ class WebTwitterClient(TwitterClient):
                 logging.info('Known status %s. Ignoring', id)
             else:
                 logging.info('New status %s. Saving.', id)
-                statuses.append(self.oembed(user, id))
+                statuses.append(oembed(user, id))
 
         return statuses
 
-    def oembed(self, user, status):
-        params = {'url': 'https://twitter.com/{}/status/{}'.format(user, status),
-                  'partner': '',
-                  'hide_thread': 'false'}
-        uri = 'https://publish.twitter.com/oembed?' + urlencode(params)
-        st, reason, body = self.http_get(uri)
+
+class NitterTwitterClient(TwitterClient):
+    def __init__(self, db):
+        self.db = db
+
+    def get_timeline(self, user, since=None):
+        st, reason, body = http_get('https://nitter.net/' + user)
         if st != 200:
-            raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
-                                                                  b))
-        o = json.loads(body)
-        html = o['html']
-        now = datetime.now()
+            raise Exception('Nitter response: {}: {}: {}'.format(st, reason, b))
+        statuses = []
+        r = r'class="tweet-link" href="/(\w+)/status/(\d+)#m"'
+        ids = map(lambda x: x[1], re.compile(r).findall(body.decode('utf-8')))
+        ids = list(reversed(list(ids)))
+        logging.info('Got %d statuses from Nitter.', len(ids))
 
-        return Status(int(status), now, user, now, html)
+        for id in ids:
+            if db.statuses.find_one({'_id': int(id)}):
+                logging.info('Known status %s. Ignoring', id)
+            else:
+                logging.info('New status %s. Saving.', id)
+                statuses.append(oembed(user, id))
 
-    def http_get(self, uri):
-        req = urllib.request.Request(uri)
-        req.add_header('User-Agent', self.ua)
-        with urllib.request.urlopen(req) as r:
-            return r.status, r.reason, r.read()
+        return statuses
 
 
 def read_config(path):
@@ -401,6 +426,8 @@ if __name__ == '__main__':
     client = None
     if config['twitter.client'] == 'web':
         client = WebTwitterClient(db)
+    if config['twitter.client'] == 'nitter':
+        client = NitterTwitterClient(db)
     elif config['twitter.client'] == 'api':
         client = APITwitterClient(config['twitter.consumer-key'],
                                   config['twitter.consumer-secret'],
