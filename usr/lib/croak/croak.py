@@ -2,7 +2,7 @@ import io
 import re
 import sys
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import dateutil.tz
 import json
 import logging
@@ -37,7 +37,7 @@ def http_get(uri):
         return r.status, r.reason, r.read()
 
 
-def oembed(user, status):
+def oembed(user, status, tm=None):
     params = {'url': 'https://twitter.com/{}/status/{}'.format(user, status),
               'partner': '',
               'hide_thread': 'false'}
@@ -48,8 +48,10 @@ def oembed(user, status):
     o = json.loads(body)
     html = o['html']
     now = datetime.now()
+    if not tm:
+        tm = now
 
-    return Status(int(status), now, user, now, html)
+    return Status(int(status), now, user, tm, html)
 
 
 class Ref:
@@ -153,20 +155,42 @@ class NitterTwitterClient(TwitterClient):
         st, reason, body = http_get('https://nitter.net/' + user)
         if st != 200:
             raise Exception('Nitter response: {}: {}: {}'.format(st, reason, b))
-        statuses = []
-        r = r'class="tweet-link" href="/(\w+)/status/(\d+)#m"'
-        ids = map(lambda x: x[1], re.compile(r).findall(body.decode('utf-8')))
+        html = body.decode('utf-8')
+        idre = re.compile(r'class="tweet-link" href="/(\w+)/status/(\d+)#m"')
+        tmre = re.compile(r'class="tweet-date"><a href="/(\w+)/status/(\d+)#m" title="([^"]+)">')
+        pos = 0
+        ids = []
+        while True:
+            m = idre.search(html, pos=pos)
+            if not m:
+                break
+            id = m.group(2)
+
+            m = tmre.search(html, pos=m.end())
+            if not m:
+                raise Exception('tweet timestamp not found')
+            tm = self.parse_time(m.group(3))
+            pos = m.end()
+
+            ids.append((id, tm))
+
         ids = list(reversed(list(ids)))
         logging.info('Got %d statuses from Nitter.', len(ids))
 
-        for id in ids:
+        statuses = []
+        for id, tm in ids:
             if db.statuses.find_one({'_id': int(id)}):
                 logging.info('Known status %s. Ignoring', id)
             else:
                 logging.info('New status %s. Saving.', id)
-                statuses.append(oembed(user, id))
+                statuses.append(oembed(user, id, tm))
 
         return statuses
+
+    def parse_time(self, s):
+        t = datetime.strptime(s, '%b %d, %Y · %I:%M %p %Z')
+        return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second,
+                        tzinfo=timezone.utc)
 
 
 def read_config(path):
