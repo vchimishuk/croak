@@ -8,7 +8,7 @@
       <tr>
         <td>
           <br />
-          <a href="/timeline/{{ user or '' }}?offset={{ prev }}">See newer</a>
+          <a rel="prev" href="/timeline/{{ user or '' }}?offset={{ prev }}">See newer</a>
           <br />
           <br />
         </td>
@@ -31,7 +31,7 @@
       <td>
         <br />
         <br />
-        <a href="/timeline/{{ user or '' }}?offset={{ next }}">See older</a>
+        <a rel="next" href="/timeline/{{ user or '' }}?offset={{ next }}">See older</a>
         <br />
         <br />
       </td>
