@@ -7,7 +7,7 @@ import dateutil.tz
 import json
 import logging
 import threading
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 import urllib.request
 import twitter
 import pymongo
@@ -15,6 +15,9 @@ import pyrite
 import flask
 import configparser
 import werkzeug.exceptions
+
+
+UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0'
 
 
 def time_to_str(t):
@@ -30,9 +33,8 @@ def read_file(name):
 
 
 def http_get(uri):
-    ua = 'Croak Python-urllib/{}.{}'.format(*sys.version_info[:2])
     req = urllib.request.Request(uri)
-    req.add_header('User-Agent', ua)
+    req.add_header('User-Agent', UA)
     with urllib.request.urlopen(req) as r:
         return r.status, r.reason, r.read()
 
@@ -129,7 +131,7 @@ class WebTwitterClient(TwitterClient):
         self.db = db
 
     def get_timeline(self, user, since=None):
-        st, reason, body = http_get('https://twitter.com/' + user)
+        st, reason, body = http_get(urljoin(self.host, user))
         if st != 200:
             raise Exception('Twitter response: {}: {}: {}'.format(st, reason,
                                                                   b))
@@ -148,7 +150,8 @@ class WebTwitterClient(TwitterClient):
 
 
 class NitterTwitterClient(TwitterClient):
-    def __init__(self, db):
+    def __init__(self, host, db):
+        self.host = host
         self.db = db
 
     def get_timeline(self, user, since=None):
@@ -451,7 +454,7 @@ if __name__ == '__main__':
     if config['twitter.client'] == 'web':
         client = WebTwitterClient(db)
     if config['twitter.client'] == 'nitter':
-        client = NitterTwitterClient(db)
+        client = NitterTwitterClient(config['nitter.host'], db)
     elif config['twitter.client'] == 'api':
         client = APITwitterClient(config['twitter.consumer-key'],
                                   config['twitter.consumer-secret'],
@@ -462,8 +465,8 @@ if __name__ == '__main__':
         sys.exit(1)
 
     sync = Synchronizer(db, graphite, client,
-                        int(config['twitter.sync-users']),
-                        int(config['twitter.sync-delay']))
+                        int(config['sync.users']),
+                        int(config['sync.delay']))
     sync.start()
     # TODO: Stop synchronizer and application.
     #       graphite.close()
