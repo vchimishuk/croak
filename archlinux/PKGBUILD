@@ -1,7 +1,7 @@
 # Maintainer: Viacheslav Chimishuk <vchimishuk@yandex.ru>
 
 pkgname=croak
-pkgver=0.9.1
+pkgver=0.10.0
 pkgrel=1
 pkgdesc="Simple twitter web-client."
 arch=('any')
