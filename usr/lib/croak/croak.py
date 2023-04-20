@@ -7,7 +7,7 @@ import dateutil.tz
 import json
 import logging
 import threading
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urlparse, urlencode, urljoin
 import urllib.request
 import twitter
 import pymongo
@@ -15,9 +15,13 @@ import pyrite
 import flask
 import configparser
 import werkzeug.exceptions
+from xml.etree import ElementTree
 
 
 UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0'
+TWITTER_DOMAIN = 'twitter.com'
+SRC_MASTODON = 'm'
+SRC_TWITTER = 't'
 
 
 def time_to_str(t):
@@ -39,14 +43,14 @@ def http_get(uri):
         return r.status, r.reason, r.read()
 
 
-def oembed(user, status, tm=None):
+def twitter_oembed(user, status, tm=None):
     params = {'url': 'https://twitter.com/{}/status/{}'.format(user, status),
               'partner': '',
               'hide_thread': 'false'}
     uri = 'https://publish.twitter.com/oembed?' + urlencode(params)
     st, reason, body = http_get(uri)
     if st != 200:
-        raise Exception('Twitter response: {}: {}: {}'.format(st, reason, b))
+        raise Exception('Twitter response: {}: {}'.format(st, reason))
     o = json.loads(body)
     html = o['html']
     now = datetime.now()
@@ -54,6 +58,19 @@ def oembed(user, status, tm=None):
         tm = now
 
     return Status(int(status), now, user, tm, html)
+
+
+def mastodon_oembed(user, status, url, tm):
+    uri = 'https://{}/api/oembed?{}'.format(urlparse(url).hostname,
+                                            urlencode({'url': url}))
+    st, reason, body = http_get(uri)
+    if st != 200:
+        raise Exception('Mastodon response: {}: {}'.format(st, reason))
+    o = json.loads(body)
+    html = o['html']
+    now = datetime.now()
+
+    return Status(status, now, user, tm, html)
 
 
 class Ref:
@@ -85,6 +102,29 @@ class User:
         else:
             return ''
 
+    @property
+    def source(self):
+        id, domain = self.id_domain()
+        if domain == TWITTER_DOMAIN:
+            return SRC_TWITTER
+        else:
+            return SRC_MASTODON
+
+    @property
+    def profile_url(self):
+        id, domain = self.id_domain()
+        if domain == TWITTER_DOMAIN:
+            return 'https://{}/{}'.format(domain, id)
+        else:
+            return 'https://{}/@{}'.format(domain, id)
+
+    def id_domain(self):
+        s = self.id.split('@', 1)
+        if len(s) == 1 or s[1] == TWITTER_DOMAIN:
+            return (s[0], TWITTER_DOMAIN)
+        else:
+            return (s[0], s[1])
+
 
 class Status:
     def __init__(self, id, fetch_time, user, time, html):
@@ -95,12 +135,12 @@ class Status:
         self.html = html
 
 
-class TwitterClient:
+class Source:
     def get_timeline(user, since=None):
         raise NotImplementedError()
 
 
-class APITwitterClient(TwitterClient):
+class APITwitterSource(Source):
     def __init__(self, consumer_key, consumer_secret,
                  access_token_key, access_token_secret):
         self.api = twitter.Api(consumer_key=consumer_key,
@@ -124,7 +164,7 @@ class APITwitterClient(TwitterClient):
         return statuses
 
 
-class WebTwitterClient(TwitterClient):
+class WebTwitterSource(Source):
     idre = re.compile(r'id="stream-item-tweet-(\d+)"')
 
     def __init__(self, db):
@@ -144,12 +184,12 @@ class WebTwitterClient(TwitterClient):
                 logging.info('Known status %s. Ignoring', id)
             else:
                 logging.info('New status %s. Saving.', id)
-                statuses.append(oembed(user, id))
+                statuses.append(twitter_oembed(user, id))
 
         return statuses
 
 
-class NitterTwitterClient(TwitterClient):
+class NitterTwitterSource(Source):
     def __init__(self, host, db):
         self.host = host
         self.db = db
@@ -157,7 +197,7 @@ class NitterTwitterClient(TwitterClient):
     def get_timeline(self, user, since=None):
         st, reason, body = http_get('https://nitter.net/' + user)
         if st != 200:
-            raise Exception('Nitter response: {}: {}: {}'.format(st, reason, b))
+            raise Exception('Nitter response: {}: {}'.format(st, reason))
         html = body.decode('utf-8')
         idre = re.compile(r'class="tweet-link" href="/(\w+)/status/(\d+)#m"')
         tmre = re.compile(r'class="tweet-date"><a href="/(\w+)/status/(\d+)#m" title="([^"]+)">')
@@ -186,7 +226,7 @@ class NitterTwitterClient(TwitterClient):
                 logging.info('Known status %s. Ignoring', id)
             else:
                 logging.info('New status %s. Saving.', id)
-                statuses.append(oembed(user, id, tm))
+                statuses.append(twitter_oembed(user, id, tm))
 
         return statuses
 
@@ -194,6 +234,36 @@ class NitterTwitterClient(TwitterClient):
         t = datetime.strptime(s, '%b %d, %Y · %I:%M %p %Z')
         return datetime(t.year, t.month, t.day, t.hour, t.minute, t.second,
                         tzinfo=timezone.utc)
+
+
+class MastodonSource(Source):
+    def __init__(self, db):
+        self.db = db
+
+    def get_timeline(self, user, since=None):
+        id, host = user.split('@', 1)
+        url = 'https://{}/@{}.rss'.format(host, id)
+        st, reason, body = http_get(url)
+        if st != 200:
+            raise Exception('Mastodon response: {}: {}'.format(st, reason))
+
+        xml = ElementTree.fromstring(body)
+        statuses = []
+        for item in xml.find('channel').findall('item'):
+            link = item.find('link').text
+            # TODO: Status is not uniq over all Mastodon instances and Twitter.
+            #       Looks like we need to introduce compound status value here.
+            #       Something like: twitter:12345, inuh.net:12345.
+            id = int(link.split('/')[-1])
+            tm = datetime.strptime(item.find('pubDate').text,
+                                   '%a, %d %b %Y %H:%M:%S %z')
+            if db.statuses.find_one({'_id': int(id)}):
+                logging.info('Known status %s. Ignoring', id)
+            else:
+                logging.info('New status %s. Saving.', id)
+                statuses.append(mastodon_oembed(user, id, link, tm))
+
+        return statuses
 
 
 def read_config(path):
@@ -271,12 +341,12 @@ def timeline_stats(db, start_date):
 
 
 class Synchronizer(threading.Thread):
-    def __init__(self, db, graphite, client, sync_users, sync_delay):
+    def __init__(self, db, graphite, clients, sync_users, sync_delay):
         super().__init__()
 
         self.db = db
         self.graphite = graphite
-        self.client = client
+        self.clients = clients
         self.sync_users = sync_users
         self.sync_delay = sync_delay
 
@@ -297,6 +367,7 @@ class Synchronizer(threading.Thread):
                     if last_sts:
                         last_st = last_sts[0].id
 
+                    client = self.clients[u.source]
                     for st in client.get_timeline(u.id, last_st):
                         save_status(self.db, st)
 
@@ -450,21 +521,23 @@ def stats():
 if __name__ == '__main__':
     db.statuses.create_index([("fetch_time", pymongo.DESCENDING)])
 
-    client = None
+    tw_client = None
     if config['twitter.client'] == 'web':
-        client = WebTwitterClient(db)
+        tw_client = WebTwitterSource(db)
     if config['twitter.client'] == 'nitter':
-        client = NitterTwitterClient(config['nitter.host'], db)
+        tw_client = NitterTwitterSource(config['nitter.host'], db)
     elif config['twitter.client'] == 'api':
-        client = APITwitterClient(config['twitter.consumer-key'],
-                                  config['twitter.consumer-secret'],
-                                  config['twitter.access-token-key'],
-                                  config['twitter.access-token-secret'])
+        tw_client = APITwitterSource(config['twitter.consumer-key'],
+                                     config['twitter.consumer-secret'],
+                                     config['twitter.access-token-key'],
+                                     config['twitter.access-token-secret'])
     else:
         logging.critical('%s: invalid twitter.client value', CONF_FILE)
         sys.exit(1)
 
-    sync = Synchronizer(db, graphite, client,
+    clients = {SRC_MASTODON: MastodonSource(db),
+               SRC_TWITTER: tw_client}
+    sync = Synchronizer(db, graphite, clients,
                         int(config['sync.users']),
                         int(config['sync.delay']))
     sync.start()

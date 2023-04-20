@@ -113,13 +113,13 @@
         &nbsp;
       </td>
       <td>
-        <a href="https://twitter.com/{{ u.id }}" target="_blank">
+        <a href="{{ u.profile_url }}" target="_blank">
           &nbsp;<span class="value">{{ u.sync_time_str }}</span>&nbsp;
         </a>
       </td>
       <td>
         {% if u.id in stats %}
-          <a href="https://twitter.com/{{ u.id }}/status/{{ stats.get(u.id).latest.id }}"
+          <a href="{{ u.profile_url }}{% if u.source == 't' %}/status{% endif %}/{{ stats.get(u.id).latest.id }}"
              target="_blank">
             &nbsp;
             <span class="value">{{ stats.get(u.id).latest.time }}</span>
