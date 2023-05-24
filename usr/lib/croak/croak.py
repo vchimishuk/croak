@@ -236,7 +236,7 @@ class NitterTwitterSource(Source):
                         tzinfo=timezone.utc)
 
 
-class MastodonSource(Source):
+class RSSMastodonSource(Source):
     def __init__(self, db):
         self.db = db
 
@@ -264,6 +264,57 @@ class MastodonSource(Source):
                 statuses.append(mastodon_oembed(user, id, link, tm))
 
         return statuses
+
+
+class APIMastodonSource(Source):
+    def __init__(self, db):
+        self.db = db
+
+    def get_timeline(self, user, since=None):
+        acc = self.get_account(user)
+        login, host = self.split_user(user)
+        urlp = 'https://{}/api/v1/accounts/{}/statuses?exclude_replies=true'
+        url = urlp.format(host, acc)
+        body = self.http_get(url)
+        stats = json.loads(body)
+        statuses = []
+        for stat in stats:
+            s = stat.get('reblog', stat) or stat
+            url = s['url']
+            tm = datetime.fromisoformat(s['created_at'])
+            try:
+                id = int(url.split('/')[-1])
+            except ValueError:
+                # url can be a link to third-party web site. Not sure how
+                # to handle it now. So, simply ignore it for now.
+                continue
+            try:
+                statuses.append(mastodon_oembed(user, id, url, tm))
+            except urllib.error.HTTPError as e:
+                if e.code == 403:
+                    # Ignore private Mastodon instances and accounts.
+                    pass
+                else:
+                    raise e
+
+        return statuses
+
+    def get_account(self, user):
+        login, host = self.split_user(user)
+        url = 'https://{}/api/v1/accounts/lookup?acct={}'.format(host, login)
+        body = self.http_get(url)
+
+        return json.loads(body)['id']
+
+    def http_get(self, url):
+        st, reason, body = http_get(url)
+        if st != 200:
+            raise Exception('Mastodon response: {}: {}'.format(st, reason))
+
+        return body
+
+    def split_user(self, user):
+        return user.split('@', 1)
 
 
 def read_config(path):
@@ -535,7 +586,16 @@ if __name__ == '__main__':
         logging.critical('%s: invalid twitter.client value', CONF_FILE)
         sys.exit(1)
 
-    clients = {SRC_MASTODON: MastodonSource(db),
+    md_client = None
+    if config['mastodon.client'] == 'rss':
+        md_client = RSSMastodonSource(db)
+    elif config['mastodon.client'] == 'api':
+        md_client = APIMastodonSource(db)
+    else:
+        logging.critical('%s: invalid mastodon.client value', CONF_FILE)
+        sys.exit(1)
+
+    clients = {SRC_MASTODON: md_client,
                SRC_TWITTER: tw_client}
     sync = Synchronizer(db, graphite, clients,
                         int(config['sync.users']),
