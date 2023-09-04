@@ -18,7 +18,11 @@ import werkzeug.exceptions
 from xml.etree import ElementTree
 
 
-UA = 'Mozilla/5.0 (X11; Linux x86_64; rv:108.0) Gecko/20100101 Firefox/108.0'
+# TODO: Add gzip support.
+#       https://nick3499.medium.com/urllib-request-request-urlopen-gzip-675de5842922
+HEADERS = {'Accept': 'text/html',
+           'Accept-Language': 'en-US,en;q=0.9',
+           'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36'}
 TWITTER_DOMAIN = 'twitter.com'
 SRC_MASTODON = 'm'
 SRC_TWITTER = 't'
@@ -38,7 +42,8 @@ def read_file(name):
 
 def http_get(uri):
     req = urllib.request.Request(uri)
-    req.add_header('User-Agent', UA)
+    for n, v in HEADERS.items():
+        req.add_header(n, v)
     with urllib.request.urlopen(req) as r:
         return r.status, r.reason, r.read()
 
